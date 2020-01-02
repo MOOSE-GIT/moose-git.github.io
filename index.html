@@ -6,29 +6,19 @@
           content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="icon" type="image/png" href="https://zzzmh.cn/image/logo/favicon2.ico">
-    <title>全球首家大型线上吸猫网站</title>
+    <title>Moose</title>
 </head>
 <body style="background: gainsboro;">
-<h3>全球首家大型线上吸猫网站</h3>
-<p>原&nbsp;&nbsp;作&nbsp;&nbsp;者：<a href="https://github.com/QiShaoXuan/live2DModel" target="_blank">https://github.com/QiShaoXuan/live2DModel</a></p>
-<p>本站源码：<a href="https://gitee.com/tczmh/live2DModel" target="_blank">https://gitee.com/tczmh/live2DModel</a></p>
-<div style="font-size: 24px">
-    <span>在线选猫：</span>
-    <a href="javascript:show(tororo)">白猫</a>
-    <a href="javascript:show(hijiki)">黑猫</a>
-</div>
 </body>
 <script src="l2dwidget.min.js"></script>
 <script>
-    var tororo = 'https://tczmh.gitee.io/live2dmodel/tororo/assets/tororo.model.json';
-    var hijiki = 'https://tczmh.gitee.io/live2dmodel/hijiki/assets/hijiki.model.json';
-
+    var tororo = 'tororo/assets/tororo.model.json';
+    var hijiki = 'hijiki/assets/hijiki.model.json';
     function show(path) {
         config.model.jsonPath = path;
         L2Dwidget.init(config)
     }
-    // 配置文件官方API: https://l2dwidget.js.org/docs/class/src/index.js~L2Dwidget.html#instance-method-init
+
     var config = {
         model: {
             jsonPath: '', // xxx.model.json 的路径
