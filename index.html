@@ -1,323 +1,381 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
+<!DOCTYPE HTML PUBLIC >
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport"
-          content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
-    <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Moose</title>
-    <style>
-      * {margin: 0; padding: 0;}
-      body {background: black;}
-      /* canvas {display: block;} */
-      </style>
-</head>
-<body style="background: gainsboro;">
-  <canvas id="canvasbg" width="1521" height="258"></canvas>
-</body>
-<script src="l2dwidget.min.js"></script>
-<script>
-    var tororo = 'tororo/assets/tororo.model.json';
-    var hijiki = 'hijiki/assets/hijiki.model.json';
-    function show(path) {
-        config.model.jsonPath = path;
-        L2Dwidget.init(config)
-    }
-    var config = {
-        model: {
-            jsonPath: '', // xxx.model.json 的路径
-        },
-        display: {
-            superSample: 1, // 超采样等级
-            width: 350, // canvas的宽度
-            height: 400, // canvas的高度
-            position: 'right', // 显示位置：左或右
-            hOffset: 0, // canvas水平偏移
-            vOffset: 0, // canvas垂直偏移
-        },
-        mobile: {
-            show: true, // 是否在移动设备上显示
-            scale: 1, // 移动设备上的缩放
-            motion: true, // 移动设备是否开启重力感应
-        },
-        react: {
-            opacityDefault: 1, // 默认透明度
-            opacityOnHover: 1, // 鼠标移上透明度
-        },
-    }
-    window.onload = function () {
-      show(tororo);
-      document.body.addEventListener('dblclick', onDocumenDblClick);
-    }
-    function onDocumenDblClick(){
-      window.location.href="./papa/index.html"
-    }
-</script>
-<script>
+<title>Moose</title>
+<meta http-equiv="imagetoolbar" content="no">
+<style type="text/css">
+	html {
+		overflow: hidden;
+	}
+	body {
+		position: absolute;
+		margin: 0px;
+		padding: 0px;
+		background: #eee;
+		width: 100%;
+		height: 100%;
+		color: #fff;
+		font-family: arial;
+		font-size: 0.8em;
+	}
+	#screen {
+		position: absolute;
+		width: 100%;
+		height: 100%;
+		background: #000;
+		overflow: hidden;
+	}
+	#screen img, canvas { 
+		position: absolute;
+		left: -9999px;
+		cursor: pointer;
+    image-rendering: optimizeSpeed;
 
-  var canvas = document.getElementById("canvasbg");
-  
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-  
-  // Initialize the GL context
-  var gl = canvas.getContext('webgl');
-  if(!gl){
-    console.error("Unable to initialize WebGL.");
-  }
-  
-  //Time step
-  var dt = 0.015;
-  //Time
-  var time = 0.0;
-  
-  //************** Shader sources **************
-  
-  var vertexSource = `
-  attribute vec2 position;
-  void main() {
-      gl_Position = vec4(position, 0.0, 1.0);
-  }
-  `;
-  
-  var fragmentSource = `
-  precision highp float;
-  
-  uniform float width;
-  uniform float height;
-  vec2 resolution = vec2(width, height);
-  
-  uniform float time;
-  
-  //Base values modified with depth later
-  float intensity = 1.0;
-  float radius = 0.05;
-  
-  //Distance functions from 
-  //https://www.iquilezles.org/www/articles/distfunctions2d/distfunctions2d.htm
-  float triangleDist(vec2 p){ 
-      const float k = sqrt(3.0);
-    p.x = abs(p.x) - 1.0;
-    p.y = p.y + 1.0/k;
-    if( p.x+k*p.y>0.0 ) p=vec2(p.x-k*p.y,-k*p.x-p.y)/2.0;
-    p.x -= clamp( p.x, -2.0, 0.0 );
-    return -length(p)*sign(p.y);
-  }
-  
-  float boxDist(vec2 p){
-    vec2 d = abs(p)-1.0;
-    return length(max(d,vec2(0))) + min(max(d.x,d.y),0.0);
-  }
-  
-  float circleDist( vec2 p){
-    return length(p) - 1.0;
-  }
-  
-  //https://www.shadertoy.com/view/3s3GDn
-  float getGlow(float dist, float radius, float intensity){
-    return pow(radius/dist, intensity);
-  }
-  
-  void main(){
-      
-      vec2 uv = gl_FragCoord.xy/resolution.xy;
-    float widthHeightRatio = resolution.x/resolution.y;
-    vec2 centre;
-    vec2 pos;
-      
-    float t = time * 0.05;
-      
-    float dist;
-    float glow;
-    vec3 col = vec3(0);
-      
-    //The spacing between shapes
-    float scale = 500.0;
-    //Number of shapes
-    const float layers = 15.0;
-      
-    float depth;
-    vec2 bend;
-      
-    vec3 purple = vec3(0.611, 0.129, 0.909);
-    vec3 green = vec3(0.133, 0.62, 0.698);
-      
-    float angle;
-    float rotationAngle;
-    mat2 rotation;
-      
-    //For movement of the anchor point in time
-    float d = 2.5*(sin(t) + sin(3.0*t));
-  
-    //Create an out of frame anchor point where all shapes converge to    
-    vec2 anchor = vec2(0.5 + cos(d), 0.5 + sin(d));
-      
-    //Create light purple glow at the anchor loaction
-    pos = anchor - uv;
-    pos.y /= widthHeightRatio;
-    dist = length(pos);
-    glow = getGlow(dist, 0.2, 1.9);
-    col += glow * vec3(0.7,0.6,1.0);
-      
-      for(float i = 0.0; i < layers; i++){
-          
-      //Time varying depth information depending on layer
-      depth = fract(i/layers + t);
-  
-      //Move the focus of the camera in a circle
-      centre = vec2(0.5 + 0.2 * sin(t), 0.5 + 0.2 * cos(t));
-          
-      //Position shapes between the anchor and the camera focus based on depth
-      bend = mix(anchor, centre, depth);
-          
-      pos = bend - uv;
-      pos.y /= widthHeightRatio;
-  
-      //Rotate shapes
-      rotationAngle = 3.14 * sin(depth + fract(t) * 6.28) + i;
-      rotation = mat2(cos(rotationAngle), -sin(rotationAngle), 
-                      sin(rotationAngle),  cos(rotationAngle));
-          
-      pos *= rotation;
-          
-      //Position shapes according to depth
-      pos *= mix(scale, 0.0, depth);
-          
-      float m = mod(i, 3.0);
-      if(m == 0.0){
-          dist = abs(boxDist(pos));
-      }else if(m == 1.0){
-        dist = abs(triangleDist(pos));
-      }else{
-          dist = abs(circleDist(pos));
-      }
-         
-      //Get glow from base radius and intensity modified by depth
-      glow = getGlow(dist, radius+(1.0-depth)*2.0, intensity + depth);
-          
-      //Find angle along shape and map from [-PI; PI] to [0; 1]
-      angle = (atan(pos.y, pos.x)+3.14)/6.28;
-      //Shift angle depending on layer and map to [1...0...1]
-          angle = abs((2.0*fract(angle + i/layers)) - 1.0);
-          
-      //White core
-      //col += 10.0*vec3(smoothstep(0.03, 0.02, dist));
-          
-      //Glow according to angle value
-      col += glow * mix(green, purple, angle);
-      }
-      
-    //Tone mapping
-    col = 1.0 - exp(-col);
-      
-    //Output to screen
-    gl_FragColor = vec4(col,1.0);
-  }
-  `;
-  
-  //************** Utility functions **************
-  
-  window.addEventListener('resize', onWindowResize, false);
-  
-  function onWindowResize(){
-    canvas.width  = window.innerWidth;
-    canvas.height = window.innerHeight;
-      gl.viewport(0, 0, canvas.width, canvas.height);
-    gl.uniform1f(widthHandle, window.innerWidth);
-    gl.uniform1f(heightHandle, window.innerHeight);
-  }
-  
-  
-  //Compile shader and combine with source
-  function compileShader(shaderSource, shaderType){
-    var shader = gl.createShader(shaderType);
-    gl.shaderSource(shader, shaderSource);
-    gl.compileShader(shader);
-    if(!gl.getShaderParameter(shader, gl.COMPILE_STATUS)){
-      throw "Shader compile failed with: " + gl.getShaderInfoLog(shader);
-    }
-    return shader;
-  }
-  
-  //From https://codepen.io/jlfwong/pen/GqmroZ
-  //Utility to complain loudly if we fail to find the attribute/uniform
-  function getAttribLocation(program, name) {
-    var attributeLocation = gl.getAttribLocation(program, name);
-    if (attributeLocation === -1) {
-      throw 'Cannot find attribute ' + name + '.';
-    }
-    return attributeLocation;
-  }
-  
-  function getUniformLocation(program, name) {
-    var attributeLocation = gl.getUniformLocation(program, name);
-    if (attributeLocation === -1) {
-      throw 'Cannot find uniform ' + name + '.';
-    }
-    return attributeLocation;
-  }
-  
-  //************** Create shaders **************
-  
-  //Create vertex and fragment shaders
-  var vertexShader = compileShader(vertexSource, gl.VERTEX_SHADER);
-  var fragmentShader = compileShader(fragmentSource, gl.FRAGMENT_SHADER);
-  
-  //Create shader programs
-  var program = gl.createProgram();
-  gl.attachShader(program, vertexShader);
-  gl.attachShader(program, fragmentShader);
-  gl.linkProgram(program);
-  
-  gl.useProgram(program);
-  
-  //Set up rectangle covering entire canvas 
-  var vertexData = new Float32Array([
-    -1.0,  1.0,   // top left
-    -1.0, -1.0,   // bottom left
-     1.0,  1.0,   // top right
-     1.0, -1.0,   // bottom right
-  ]);
-  
-  //Create vertex buffer
-  var vertexDataBuffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, vertexDataBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, vertexData, gl.STATIC_DRAW);
-  
-  // Layout of our data in the vertex buffer
-  var positionHandle = getAttribLocation(program, 'position');
-  
-  gl.enableVertexAttribArray(positionHandle);
-  gl.vertexAttribPointer(positionHandle,
-    2,                // position is a vec2 (2 values per component)
-    gl.FLOAT, // each component is a float
-    false,        // don't normalize values
-    2 * 4,        // two 4 byte float components per vertex (32 bit float is 4 bytes)
-    0                 // how many bytes inside the buffer to start from
-    );
-  
-  //Set uniform handle
-  var timeHandle = getUniformLocation(program, 'time');
-  var widthHandle = getUniformLocation(program, 'width');
-  var heightHandle = getUniformLocation(program, 'height');
-  
-  gl.uniform1f(widthHandle, window.innerWidth);
-  gl.uniform1f(heightHandle, window.innerHeight);
-  
-  function draw(){
-    //Update time
-    time += dt;
-  
-      //Send uniforms to program
-    gl.uniform1f(timeHandle, time);
-    //Draw a triangle strip connecting vertices 0-4
-    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-  
-    requestAnimationFrame(draw);
-  }
-  
-  draw();
-  
-  </script>
+	}
+	#screen .href {
+		border: #FFF dotted 1px;
+	}
+	#screen .fog { 
+		position: absolute;
+		background: #fff;
+		opacity: 0.1;
+		filter: alpha(opacity=10);
+	}
+	#command {
+		position:absolute;
+		left: 1em;
+		top: 1em;
+		width: 130px;
+		z-index: 30000;
+		background:#000;
+		border: #000 solid 1em;
+	}
+	#bar {
+		position:relative;
+		left: 1em;
+		top: 1em;
+		height: 160px;
+	}
+	#bar .button { 
+		position: absolute;
+		background: #222;
+		width: 20px;
+		height: 20px;
+		cursor: pointer;
+	}
+	#bar .loaded { 
+		background: #666;
+	}
+	#bar .viewed { 
+		background: #fff;
+	}
+	#bar .selected { 
+		background: #f00;
+	}
+	#urlInfo {
+		position: absolute;
+		background: url(images/r.gif) no-repeat 0 4px;
+		visibility: hidden;
+		z-index: 30000;
+		padding-left: 12px;
+		cursor: pointer;
+	}
+</style>
+
+<script type="text/javascript">
+
+
+var m3D = function () {
+	/* ---- private vars ---- */
+	var diapo = [],
+		imb,
+		scr,
+		bar,
+		selected,
+		urlInfo,
+		imagesPath = "images/",
+		camera = {x:0, y:0, z:-650, s:0, fov: 500},
+		nw = 0,
+		nh = 0;
+	/* ==== camera tween methods ==== */
+	camera.setTarget = function (c0, t1, p) {
+		if (Math.abs(t1 - c0) > .1) {
+			camera.s = 1;
+			camera.p = 0;
+			camera.d = t1 - c0;
+			if (p) {
+				camera.d *= 2;
+				camera.p = 9;
+			}
+		}
+	}
+	camera.tween = function (v) {
+		if (camera.s != 0) {
+			camera.p += camera.s;
+			camera[v] += camera.d * camera.p * .01;
+			if (camera.p == 10) camera.s = -1;
+			else if (camera.p == 0) camera.s = 0;
+		}
+		return camera.s;
+	}
+	/* ==== diapo constructor ==== */
+	var Diapo = function (n, img, x, y, z) {
+		if (img) {
+			this.url = img.url;
+			this.title = img.title;
+			this.color = img.color;
+			this.isLoaded = false;
+			if (document.createElement("canvas").getContext) {
+				/* ---- using canvas in place of images (performance trick) ---- */
+				this.srcImg = new Image();
+				this.srcImg.src = imagesPath + img.src;
+				this.img = document.createElement("canvas");
+				this.canvas = true;
+				scr.appendChild(this.img);
+			} else {
+				/* ---- normal image ---- */
+				this.img = document.createElement('img');
+				this.img.src = imagesPath + img.src;
+				scr.appendChild(this.img);
+			}
+			/* ---- on click event ---- */
+			this.img.onclick = function () {
+				if (camera.s) return;
+				if (this.diapo.isLoaded) {
+					if (this.diapo.urlActive) {
+						/* ---- jump hyperlink ---- */
+						top.location.href = this.diapo.url;
+					} else {
+						/* ---- target positions ---- */
+						camera.tz = this.diapo.z - camera.fov;
+						camera.tx = this.diapo.x;
+						camera.ty = this.diapo.y;
+						/* ---- disable previously selected img ---- */
+						if (selected) {
+							selected.but.className = "button viewed";
+							selected.img.className = "";
+							selected.img.style.cursor = "pointer";
+							selected.urlActive = false;
+							urlInfo.style.visibility = "hidden";
+						}
+						/* ---- select current img ---- */
+						this.diapo.but.className = "button selected";
+						interpolation(false);
+						selected = this.diapo;
+					}
+				}
+			}
+			/* ---- command bar buttons ---- */
+			this.but = document.createElement('div');
+			this.but.className = "button";
+			bar.appendChild(this.but);
+			this.but.diapo = this;
+			this.but.style.left = Math.round((this.but.offsetWidth  * 1.2) * (n % 4)) + 'px';
+			this.but.style.top  = Math.round((this.but.offsetHeight * 1.2) * Math.floor(n / 4)) + 'px';
+			this.but.onclick = this.img.onclick;
+			imb = this.img;
+			this.img.diapo = this;
+			this.zi = 25000;
+		} else {
+			/* ---- transparent div ---- */
+			this.img = document.createElement('div');
+			this.isLoaded = true;
+			this.img.className = "fog";
+			scr.appendChild(this.img);
+			this.w = 300;
+			this.h = 300;
+			this.zi = 15000;
+		}
+		/* ---- object variables ---- */
+		this.x = x;
+		this.y = y;
+		this.z = z;
+		this.css = this.img.style;
+	}
+	/* ==== main 3D animation ==== */
+	Diapo.prototype.anim = function () {
+		if (this.isLoaded) {
+			/* ---- 3D to 2D projection ---- */
+			var x = this.x - camera.x;
+			var y = this.y - camera.y;
+			var z = this.z - camera.z;
+			if (z < 20) z += 5000;
+			var p = camera.fov / z;
+			var w = this.w * p;
+			var h = this.h * p;
+			/* ---- HTML rendering ---- */
+			this.css.left   = Math.round(nw + x * p - w * .5) + 'px';
+			this.css.top    = Math.round(nh + y * p - h * .5) + 'px';  
+			this.css.width  = Math.round(w) + 'px';
+			this.css.height = Math.round(h) + 'px';
+			this.css.zIndex = this.zi - Math.round(z);
+		} else {
+			/* ---- image is loaded? ---- */
+			this.isLoaded = this.loading();
+		}
+	}
+	/* ==== onload initialization ==== */
+	Diapo.prototype.loading = function () {
+		if ((this.canvas && this.srcImg.complete) || this.img.complete) {
+			if (this.canvas) {
+				/* ---- canvas version ---- */
+				this.w = this.srcImg.width;
+				this.h = this.srcImg.height;
+				this.img.width = this.w;
+				this.img.height = this.h;
+				var context = this.img.getContext("2d");
+				context.drawImage(this.srcImg, 0, 0, this.w, this.h);
+			} else {
+				/* ---- plain image version ---- */
+				this.w = this.img.width;
+				this.h = this.img.height;
+			}
+			/* ---- button loaded ---- */
+			this.but.className += " loaded";
+			return true;
+		}
+		return false;
+	}
+	////////////////////////////////////////////////////////////////////////////
+	/* ==== screen dimensions ==== */
+	var resize = function () {
+		nw = scr.offsetWidth * .5;
+		nh = scr.offsetHeight * .5;
+	}
+	/* ==== disable interpolation during animation ==== */
+	var interpolation = function (bicubic) {
+		var i = 0, o;
+		while( o = diapo[i++] ) {
+			if (o.but) {
+				o.css.msInterpolationMode = bicubic ? 'bicubic' : 'nearest-neighbor'; // makes IE8 happy
+				o.css.imageRendering = bicubic ? 'optimizeQuality' : 'optimizeSpeed'; // does not really work...
+			}
+		}
+	}
+	/* ==== init script ==== */
+	var init = function (data) {
+		/* ---- containers ---- */
+		scr = document.getElementById("screen");
+		bar = document.getElementById("bar");
+		urlInfo = document.getElementById("urlInfo");
+		resize();
+		/* ---- loading images ---- */
+		var i = 0, 
+		    o,
+			n = data.length;
+		while( o = data[i++] ) {
+			/* ---- images ---- */
+			var x = 1000 * ((i % 4) - 1.5);
+			var y = Math.round(Math.random() * 4000) - 2000;
+			var z = i * (5000 / n);
+			diapo.push( new Diapo(i - 1, o, x, y, z));
+			/* ---- transparent frames ---- */
+			var k = diapo.length - 1;
+			for (var j = 0; j < 3; j++) {
+				var x = Math.round(Math.random() * 4000) - 2000;
+				var y = Math.round(Math.random() * 4000) - 2000;
+				diapo.push( new Diapo(k, null, x, y, z + 100));
+			}
+		}
+		/* ---- start engine ---- */
+		run();
+	}
+	////////////////////////////////////////////////////////////////////////////
+	/* ==== main loop ==== */
+	var run = function () {
+		/* ---- x axis move ---- */
+		if (camera.tx) {
+
+			if (!camera.s) camera.setTarget(camera.x, camera.tx);
+			var m = camera.tween('x');
+			if (!m) camera.tx = 0;
+		/* ---- y axis move ---- */
+		} else if (camera.ty) {
+			if (!camera.s) camera.setTarget(camera.y, camera.ty); 
+			var m = camera.tween('y');
+			if (!m) camera.ty = 0;
+		/* ---- z axis move ---- */
+		} else if (camera.tz) {
+			if (!camera.s) camera.setTarget(camera.z, camera.tz);
+			var m = camera.tween('z');
+			if (!m) {
+				/* ---- animation end ---- */
+				camera.tz = 0;
+				interpolation(true);
+				/* ---- activate hyperlink ---- */
+				if (selected.url) {
+					selected.img.style.cursor = "pointer";
+					selected.urlActive = true;
+					selected.img.className = "href";
+					urlInfo.diapo = selected;
+					urlInfo.onclick = selected.img.onclick;
+					urlInfo.innerHTML = selected.title || selected.url;
+					urlInfo.style.visibility = "visible";
+					urlInfo.style.color = selected.color || "#fff";
+					urlInfo.style.top = Math.round(selected.img.offsetTop + selected.img.offsetHeight - urlInfo.offsetHeight - 5) + "px";
+					urlInfo.style.left = Math.round(selected.img.offsetLeft + selected.img.offsetWidth - urlInfo.offsetWidth - 5) + "px";
+				} else {
+					selected.img.style.cursor = "default";
+				}
+			}
+		}
+		/* ---- anim images ---- */
+		var i = 0, o;
+		while( o = diapo[i++] ) o.anim();
+		/* ---- loop ---- */
+		setTimeout(run, 32);
+	}
+	return {
+		////////////////////////////////////////////////////////////////////////////
+		/* ==== initialize script ==== */
+		init : init
+	}
+}();
+
+</script>
+</head>
+
+<body>
+<div id="screen">
+	<div id="command">
+
+ <div id="bar"></div>
+	</div>
+	<div id="urlInfo"></div>
+</div>
+
+<script type="text/javascript">
+/* ==== start script ==== */
+setTimeout(function() {
+	m3D.init(
+		[ 
+			{ src: '46eae50db6.jpg', url: './index2.html', title: 'jump', color: '#fff' },
+			{ src: '1ef7ea6559.jpg',  url: './papa/index.html', title: 'jump', color: '#fff' },
+			{ src: '8fe86226ff.jpg' },
+			{ src: '69833ed09a.jpg' },
+			{ src: 'fe00425d0a.jpg' },
+			{ src: 'b05b0c6962.jpg' },
+			{ src: '6a884d6ef2.jpg' },
+			{ src: 'ed57bce8c4.jpg' },
+			{ src: '94da4fb185.jpg' },
+			{ src: 'd04505fe96.jpg' },
+			{ src: '46eae50db6.jpg', url: '', title: 'jump', color: '#fff' },
+			{ src: '1ef7ea6559.jpg' },
+			{ src: '8fe86226ff.jpg' },
+			{ src: '69833ed09a.jpg' },
+			{ src: 'fe00425d0a.jpg' },
+			{ src: 'b05b0c6962.jpg' },
+			{ src: '6a884d6ef2.jpg' },
+			{ src: 'ed57bce8c4.jpg' },
+			{ src: '94da4fb185.jpg' },
+			{ src: 'd04505fe96.jpg' },
+			{ src: '46eae50db6.jpg', url: '', title: 'jump to random script', color: '#fff' },
+			{ src: '1ef7ea6559.jpg' },
+			{ src: '8fe86226ff.jpg' },
+			{ src: '69833ed09a.jpg' },
+		]
+	);
+}, 500);
+</script>
+</body>
 </html>
