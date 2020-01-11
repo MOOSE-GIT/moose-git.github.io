@@ -47,7 +47,11 @@
         },
     }
     window.onload = function () {
-        show(tororo);
+      show(tororo);
+      document.body.addEventListener('dblclick', onDocumenDblClick);
+    }
+    function onDocumenDblClick(){
+      window.location.href="./papa/index.html"
     }
 </script>
 <script>
